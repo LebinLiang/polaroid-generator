@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>INSTAFRAME — 拍立得生成器</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Special+Elite&family=Caveat:wght@400;600&family=Noto+Sans+SC:wght@300;400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --orange: #FF6B00; --orange-glow: #FF8C33;
+      --black: #0A0A0A; --dark: #111; --dark2: #1A1A1A; --dark3: #252525;
+      --white: #F5F0EB; --gray: #888;
+    }
+    * { box-sizing:border-box; margin:0; padding:0; }
+    body { background:var(--black); color:var(--white); font-family:'Noto Sans SC',sans-serif; min-height:100vh; overflow-x:hidden; }
+    body::before {
+      content:''; position:fixed; inset:0; z-index:9999; pointer-events:none; opacity:.28;
+      background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+    }
+
+    /* ══ WELCOME ══ */
+    #welcome {
+      position:fixed; inset:0; z-index:100;
+      display:flex; align-items:center; justify-content:center;
+      background:var(--black); transition:opacity .5s, visibility .5s;
+    }
+    #welcome.hidden { opacity:0; visibility:hidden; pointer-events:none; }
+    .w-inner { max-width:500px; width:92%; text-align:center; }
+
+    .logo-line { display:flex; align-items:center; justify-content:center; gap:12px; margin-bottom:8px; }
+    .logo-dot  { width:9px; height:9px; border-radius:50%; background:var(--orange); animation:pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{transform:scale(1);opacity:1;} 50%{transform:scale(1.5);opacity:.5;} }
+    .logo-ey { font-size:9px; letter-spacing:.28em; color:#383838; font-family:monospace; }
+
+    .w-title {
+      font-family:'Bebas Neue',sans-serif; font-size:clamp(72px,14vw,136px);
+      letter-spacing:.06em; line-height:.9; color:var(--white);
+      text-shadow:0 0 80px rgba(255,107,0,.18);
+    }
+    .w-title span { color:var(--orange); }
+    .w-sub { font-family:'Special Elite',cursive; font-size:13px; color:#484848; margin:14px 0 32px; letter-spacing:.15em; }
+
+    .w-drop {
+      border:2px dashed #282828; padding:40px 28px;
+      cursor:pointer; position:relative; background:var(--dark2);
+      transition:border-color .2s, background .2s;
+    }
+    .w-drop:hover, .w-drop.over { border-color:var(--orange); background:rgba(255,107,0,.04); }
+    .w-drop input { position:absolute; inset:0; opacity:0; cursor:pointer; width:100%; }
+    .w-drop-icon { font-size:40px; margin-bottom:10px; }
+    .w-drop-text { font-size:13px; color:var(--gray); line-height:2; }
+    .w-drop-text strong { color:var(--orange); font-weight:400; }
+    .w-drop-hint { margin-top:12px; font-size:10px; color:#333; letter-spacing:.1em; }
+
+    /* ══ APP ══ */
+    #app { display:none; min-height:100vh; flex-direction:column; }
+    #app.visible { display:flex; }
+
+    .app-header {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:12px 28px; border-bottom:1px solid #1C1C1C;
+      background:rgba(10,10,10,.96); backdrop-filter:blur(14px);
+      position:sticky; top:0; z-index:10;
+    }
+    .app-logo { font-family:'Bebas Neue',sans-serif; font-size:20px; letter-spacing:.12em; color:var(--orange); }
+    .app-logo span { color:var(--white); }
+    .fmt-badge {
+      font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:.1em;
+      background:var(--dark2); border:1px solid #2A2A2A;
+      padding:4px 12px; color:var(--orange);
+    }
+    .hdr-r { display:flex; align-items:center; gap:8px; }
+    .ghost-btn {
+      background:transparent; border:1px solid #242424; color:#484848;
+      font-family:'Bebas Neue',sans-serif; font-size:12px; letter-spacing:.08em;
+      padding:4px 12px; cursor:pointer; transition:all .18s;
+    }
+    .ghost-btn:hover { border-color:var(--orange); color:var(--orange); }
+
+    /* layout */
+    .app-body { flex:1; display:grid; grid-template-columns:320px 1fr; height:calc(100vh - 52px); }
+
+    /* ── left panel ── */
+    .left {
+      background:var(--dark); border-right:1px solid #1C1C1C;
+      overflow-y:auto; display:flex; flex-direction:column;
+    }
+    .left::-webkit-scrollbar { width:2px; }
+    .left::-webkit-scrollbar-thumb { background:#1E1E1E; }
+
+    .sec { font-family:'Bebas Neue',sans-serif; font-size:9px; letter-spacing:.24em; color:var(--orange); padding:13px 18px 5px; border-bottom:1px solid #181818; flex-shrink:0; }
+
+    /* ── crop editor ── */
+    .crop-editor { margin:12px 18px 0; flex-shrink:0; position:relative; background:#000; user-select:none; }
+    #cropCanvas { display:block; width:100%; cursor:crosshair; touch-action:none; }
+
+    .crop-instructions { font-size:9px; color:#3A3A3A; padding:5px 18px 10px; flex-shrink:0; line-height:1.7; }
+    .crop-instructions span { color:#555; }
+
+    .crop-btns { display:flex; gap:5px; padding:0 18px 10px; flex-shrink:0; }
+    .crop-btn {
+      flex:1; background:var(--dark2); border:1px solid #242424; color:#555;
+      font-family:'Bebas Neue',sans-serif; font-size:11px; letter-spacing:.07em;
+      padding:6px 4px; cursor:pointer; text-align:center; transition:all .16s;
+    }
+    .crop-btn:hover { border-color:var(--orange); color:var(--orange); }
+    .crop-btn.primary { background:var(--orange); color:#000; border-color:var(--orange); }
+    .crop-btn.primary:hover { background:var(--orange-glow); }
+
+    /* sliders */
+    .ctrl { padding:7px 18px; display:flex; flex-direction:column; gap:4px; flex-shrink:0; }
+    .ctrl label { font-size:9px; color:#555; letter-spacing:.12em; text-transform:uppercase; }
+    .sw { display:flex; align-items:center; gap:8px; }
+    input[type=range] { flex:1; -webkit-appearance:none; height:2px; background:#1E1E1E; border-radius:2px; outline:none; }
+    input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:12px; height:12px; border-radius:50%; background:var(--orange); cursor:pointer; }
+    .sv { font-family:monospace; font-size:10px; color:var(--orange); min-width:32px; text-align:right; }
+
+    /* caption */
+    .cap {
+      margin:2px 18px; background:var(--dark2); border:1px solid #1E1E1E;
+      color:var(--white); font-family:'Special Elite',cursive; font-size:13px;
+      padding:8px 10px; width:calc(100% - 36px); resize:none; outline:none;
+      transition:border-color .18s; flex-shrink:0;
+    }
+    .cap:focus { border-color:var(--orange); }
+    .hint { font-size:9px; color:#2E2E2E; padding:3px 18px 8px; flex-shrink:0; }
+
+    /* toggle */
+    .tog-row { padding:6px 18px; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }
+    .tog-label { font-size:10px; color:var(--gray); }
+    .tog { position:relative; width:34px; height:18px; cursor:pointer; }
+    .tog input { display:none; }
+    .tog-track { position:absolute; inset:0; background:#1E1E1E; border-radius:9px; transition:background .2s; }
+    .tog input:checked ~ .tog-track { background:var(--orange); }
+    .tog-thumb { position:absolute; top:2px; left:2px; width:14px; height:14px; background:var(--white); border-radius:50%; transition:transform .2s; }
+    .tog input:checked ~ .tog-track .tog-thumb { transform:translateX(16px); }
+
+    .gen-btn {
+      margin:10px 18px 18px; width:calc(100% - 36px); flex-shrink:0;
+      padding:13px; background:var(--orange); border:none; color:#000;
+      font-family:'Bebas Neue',sans-serif; font-size:17px; letter-spacing:.1em;
+      cursor:pointer; transition:background .18s, transform .12s;
+      clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));
+    }
+    .gen-btn:hover    { background:var(--orange-glow); transform:scale(1.015); }
+    .gen-btn:disabled { background:#1A1A1A; color:#333; cursor:not-allowed; transform:none; }
+
+    /* ── right panel ── */
+    .right {
+      display:flex; align-items:center; justify-content:center;
+      background:var(--dark3); position:relative; overflow:hidden;
+      background-image:linear-gradient(rgba(255,107,0,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,0,.018) 1px,transparent 1px);
+      background-size:36px 36px;
+    }
+    .right::after { content:''; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.016) 3px,rgba(0,0,0,.016) 4px); }
+
+    .out-wrap { display:flex; flex-direction:column; align-items:center; gap:14px; position:relative; z-index:1; }
+    #outCanvas { box-shadow:0 20px 60px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.04); display:block; max-width:90%; max-height:calc(100vh - 130px); }
+    .out-btns { display:flex; gap:8px; }
+    .out-btn {
+      background:var(--dark2); border:1px solid #222; color:var(--gray);
+      font-family:'Bebas Neue',sans-serif; font-size:13px; letter-spacing:.07em;
+      padding:7px 18px; cursor:pointer; transition:all .18s;
+    }
+    .out-btn:hover         { border-color:var(--orange); color:var(--orange); }
+    .out-btn.prim          { background:var(--orange); color:#000; border-color:var(--orange); }
+    .out-btn.prim:hover    { background:var(--orange-glow); }
+
+    .empty { text-align:center; }
+    .empty-i { font-size:48px; margin-bottom:10px; opacity:.07; }
+    .empty-t { font-family:'Special Elite',cursive; color:#242424; font-size:13px; }
+  </style>
+</head>
+<body>
+
+<!-- WELCOME -->
+<div id="welcome">
+  <div class="w-inner">
+    <div class="logo-line">
+      <div class="logo-dot"></div>
+      <span class="logo-ey">instant film generator</span>
+      <div class="logo-dot"></div>
+    </div>
+    <h1 class="w-title">INSTA<span>FRAME</span></h1>
+    <p class="w-sub">上传扫描好的拍立得照片</p>
+    <div class="w-drop" id="wDrop">
+      <input type="file" id="wFile" accept="image/*" onchange="onPick(event)">
+      <div class="w-drop-icon">🎞️</div>
+      <div class="w-drop-text"><strong>点击上传</strong>或拖入照片<br><span style="font-size:11px;color:#333;">JPG · PNG · WEBP</span></div>
+      <div class="w-drop-hint">上传后手动框选照片内容区域（去除白边）</div>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <header class="app-header">
+    <div class="app-logo">INSTA<span>FRAME</span></div>
+    <div class="hdr-r">
+      <div class="fmt-badge" id="fmtBadge">SQ · 1:1</div>
+      <button class="ghost-btn" onclick="goBack()">↑ 重新上传</button>
+    </div>
+  </header>
+
+  <div class="app-body">
+
+    <!-- LEFT -->
+    <div class="left" id="leftPanel">
+
+      <div class="sec">① 框选照片内容区域（去除白边）</div>
+
+      <!-- Crop canvas -->
+      <div class="crop-editor" id="cropEditor">
+        <canvas id="cropCanvas"></canvas>
+      </div>
+
+      <div class="crop-instructions">
+        <span>拖动</span>绘制选框 · <span>拖动角点</span>调整大小 · <span>拖动中心</span>移动<br>
+        选框比例将自动锁定为 <span id="ratioHint">1:1</span>
+      </div>
+
+      <div class="crop-btns">
+        <button class="crop-btn" onclick="resetBox()">↺ 重置</button>
+        <button class="crop-btn" onclick="autoDetect()">⚡ 自动检测</button>
+        <button class="crop-btn primary" onclick="applyAndRender()">✓ 确认裁剪</button>
+      </div>
+
+      <div class="sec">② 格式</div>
+      <div style="display:flex;gap:5px;padding:8px 18px;flex-shrink:0;">
+        <button class="crop-btn active-fmt" id="btnMini" onclick="setFmt('mini',this)">MINI</button>
+        <button class="crop-btn active-fmt" id="btnSq"   onclick="setFmt('sq',this)"   style="border-color:var(--orange);color:var(--orange);">SQ</button>
+        <button class="crop-btn active-fmt" id="btnWide" onclick="setFmt('wide',this)">WIDE</button>
+        <button class="crop-btn active-fmt" id="btnFree" onclick="setFmt('free',this)">🔓 自由</button>
+      </div>
+
+      <div class="sec">③ 背景效果</div>
+
+      <div class="ctrl">
+        <label>模糊 Blur</label>
+        <div class="sw"><input type="range" id="blur" min="0" max="40" value="20" oninput="slv(this,'blurV','px');applyAndRender()"><span class="sv" id="blurV">20px</span></div>
+      </div>
+      <div class="ctrl">
+        <label>背景暗度 Dim</label>
+        <div class="sw"><input type="range" id="dim" min="10" max="100" value="50" oninput="slv(this,'dimV','%');applyAndRender()"><span class="sv" id="dimV">50%</span></div>
+      </div>
+      <div class="ctrl">
+        <label>前景大小 Foreground</label>
+        <div class="sw"><input type="range" id="fgS" min="50" max="95" value="80" oninput="slv(this,'fgV','%');applyAndRender()"><span class="sv" id="fgV">80%</span></div>
+      </div>
+      <div class="ctrl">
+        <label>阴影 Shadow</label>
+        <div class="sw"><input type="range" id="shd" min="0" max="60" value="24" oninput="slv(this,'shdV','px');applyAndRender()"><span class="sv" id="shdV">24px</span></div>
+      </div>
+
+      <div class="sec">④ 文字</div>
+      <textarea class="cap" id="cap" rows="2" placeholder="写点什么…" oninput="applyAndRender()"></textarea>
+      <div class="hint">留空则不显示</div>
+
+      <div class="tog-row">
+        <span class="tog-label">显示日期</span>
+        <label class="tog"><input type="checkbox" id="showDate" onchange="applyAndRender()" checked><div class="tog-track"><div class="tog-thumb"></div></div></label>
+      </div>
+      <div id="dateInputWrap" style="padding:0 18px 10px;flex-shrink:0;">
+        <input type="text" id="dateText"
+          value=""
+          placeholder="日期文字，可自由编辑"
+          oninput="applyAndRender()"
+          style="width:100%;background:var(--dark2);border:1px solid #1E1E1E;color:var(--white);
+                 font-family:'Caveat',cursive;font-size:16px;padding:7px 10px;outline:none;
+                 transition:border-color .18s;letter-spacing:.04em;"
+          onfocus="this.style.borderColor='var(--orange)'"
+          onblur="this.style.borderColor='#1E1E1E'">
+        <div style="font-size:9px;color:#333;margin-top:4px;letter-spacing:.08em;">可输入任意文字，留空则不显示</div>
+      </div>
+
+      <button class="gen-btn" id="genBtn" disabled onclick="applyAndRender()">⚡ 更新预览</button>
+
+    </div>
+
+    <!-- RIGHT -->
+    <div class="right" id="rightPanel">
+      <div id="emptyState" class="empty"><div class="empty-i">📷</div><div class="empty-t">确认裁剪后在此显示</div></div>
+      <div class="out-wrap" id="outWrap" style="display:none;">
+        <canvas id="outCanvas"></canvas>
+        <div class="out-btns">
+          <button class="out-btn" onclick="resetAll()">↺ 重置</button>
+          <button class="out-btn prim" onclick="dlImg()">⬇ 下载 PNG</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   FORMATS
+   Output canvas is always the exact photo-area ratio
+   (no white border). Front image is full original.
+═══════════════════════════════════════════════ */
+const FMTS = {
+  mini: { label:'MINI · 23:31', ratio: 46/62,  outW:744,  outH:1000, lockRatio: 46/62  },
+  sq:   { label:'SQ · 1:1',     ratio: 1,       outW:1000, outH:1000, lockRatio: 1      },
+  wide: { label:'WIDE · 99:62', ratio: 99/62,   outW:1000, outH:626,  lockRatio: 99/62  },
+  free: { label:'自由裁剪',      ratio: null,    outW:null, outH:null, lockRatio: null   },
+};
+
+let fmt      = 'sq';
+let userImg  = null;   // HTMLImageElement — full original
+
+/* Box in CROP CANVAS display coordinates */
+let box = { x:0, y:0, w:0, h:0 };   // the selection rectangle
+
+/* ═══════════════════════════════════════════════
+   CROP CANVAS
+═══════════════════════════════════════════════ */
+const EDITOR_W = 284;   // px, fits in 320px panel with margins
+
+let cvScale = 1;        // userImg px → display px
+let cvOffX  = 0;        // letter-boxing offsets if image taller than canvas
+let cvOffY  = 0;
+let cvDispW = 0;        // displayed image size on canvas (may have letterbox)
+let cvDispH = 0;
+
+function initCropCanvas() {
+  const cv     = document.getElementById('cropCanvas');
+  const editor = document.getElementById('cropEditor');
+  const aspect = userImg.height / userImg.width;
+  const dispH  = Math.min(Math.round(EDITOR_W * aspect), 400);
+
+  cv.width  = EDITOR_W;
+  cv.height = dispH;
+  editor.style.height = dispH + 'px';
+
+  // Fit image inside canvas (letterbox)
+  const scaleW = EDITOR_W / userImg.width;
+  const scaleH = dispH    / userImg.height;
+  cvScale = Math.min(scaleW, scaleH);
+  cvDispW = userImg.width  * cvScale;
+  cvDispH = userImg.height * cvScale;
+  cvOffX  = (EDITOR_W - cvDispW) / 2;
+  cvOffY  = (dispH    - cvDispH) / 2;
+
+  resetBox();
+  drawCrop();
+}
+
+function resetBox() {
+  if (!userImg) return;
+  const fmtRatio = FMTS[fmt].lockRatio;
+  const cx = cvOffX + cvDispW / 2;
+  const cy = cvOffY + cvDispH / 2;
+
+  if (fmtRatio) {
+    let bw, bh;
+    if (cvDispW / cvDispH > fmtRatio) { bh = cvDispH; bw = bh * fmtRatio; }
+    else                               { bw = cvDispW; bh = bw / fmtRatio; }
+    box = { x: cx - bw/2, y: cy - bh/2, w: bw, h: bh };
+  } else {
+    // Free: default to full image area
+    box = { x: cvOffX, y: cvOffY, w: cvDispW, h: cvDispH };
+  }
+  clampBox();
+}
+
+/* Auto-detect: scan for white border edges */
+function autoDetect() {
+  if (!userImg) return;
+  const SCALE = 300 / Math.max(userImg.width, userImg.height);
+  const sw = Math.round(userImg.width * SCALE);
+  const sh = Math.round(userImg.height * SCALE);
+  const oc = document.createElement('canvas');
+  oc.width = sw; oc.height = sh;
+  oc.getContext('2d').drawImage(userImg, 0, 0, sw, sh);
+  const d = oc.getContext('2d').getImageData(0, 0, sw, sh).data;
+
+  function rowFrac(y, thr=210) {
+    let n=0; for(let x=0;x<sw;x++) { const i=(y*sw+x)*4; if((d[i]+d[i+1]+d[i+2])/3>thr) n++; } return n/sw;
+  }
+  function colFrac(x, thr=210) {
+    let n=0; for(let y=0;y<sh;y++) { const i=(y*sw+x)*4; if((d[i]+d[i+1]+d[i+2])/3>thr) n++; } return n/sh;
+  }
+
+  const OTHR=0.35, ITHR=0.20;
+  let oT=0,oB=sh-1,oL=0,oR=sw-1;
+  for(let y=0;y<sh/2;y++)     if(rowFrac(y)>OTHR){oT=y;break;}
+  for(let y=sh-1;y>sh/2;y--)  if(rowFrac(y)>OTHR){oB=y;break;}
+  for(let x=0;x<sw/2;x++)     if(colFrac(x)>OTHR){oL=x;break;}
+  for(let x=sw-1;x>sw/2;x--)  if(colFrac(x)>OTHR){oR=x;break;}
+
+  let iT=oT,iB=oB,iL=oL,iR=oR;
+  for(let y=oT;y<oB;y++)     if(rowFrac(y)<ITHR){iT=y;break;}
+  for(let y=oB;y>oT;y--)     if(rowFrac(y)<ITHR){iB=y;break;}
+  for(let x=oL;x<oR;x++)     if(colFrac(x)<ITHR){iL=x;break;}
+  for(let x=oR;x>oL;x--)     if(colFrac(x)<ITHR){iR=x;break;}
+
+  // Convert detected region back to display coords
+  const S = cvScale / SCALE;  // small→img is 1/SCALE, img→display is cvScale
+  const fmtRatio = FMTS[fmt].lockRatio;
+
+  let bx = cvOffX + iL * S;
+  let by = cvOffY + iT * S;
+  let bw = (iR - iL) * S;
+  let bh = (iB - iT) * S;
+
+  // Enforce ratio lock from detected center
+  const cx = bx + bw/2, cy = by + bh/2;
+  if (bw/bh > fmtRatio) { bh = bw/fmtRatio; } else { bw = bh*fmtRatio; }
+  box = { x: cx-bw/2, y: cy-bh/2, w: bw, h: bh };
+  clampBox();
+  drawCrop();
+  applyAndRender();
+}
+
+function clampBox() {
+  const fmtRatio = FMTS[fmt].lockRatio;
+  const minX = cvOffX, maxX = cvOffX + cvDispW;
+  const minY = cvOffY, maxY = cvOffY + cvDispH;
+
+  if (fmtRatio) {
+    // Locked ratio: constrain width then derive height
+    box.w = Math.min(box.w, cvDispW);
+    box.h = box.w / fmtRatio;
+    if (box.h > cvDispH) { box.h = cvDispH; box.w = box.h * fmtRatio; }
+  } else {
+    // Free: just keep inside image bounds, min 10px
+    box.w = Math.max(10, Math.min(box.w, cvDispW));
+    box.h = Math.max(10, Math.min(box.h, cvDispH));
+  }
+  box.x = Math.max(minX, Math.min(box.x, maxX - box.w));
+  box.y = Math.max(minY, Math.min(box.y, maxY - box.h));
+}
+
+/* ── Drawing ── */
+function drawCrop() {
+  const cv  = document.getElementById('cropCanvas');
+  if (!cv || !userImg) return;
+  const ctx = cv.getContext('2d');
+  const W   = cv.width, H = cv.height;
+
+  ctx.clearRect(0, 0, W, H);
+
+  // Draw image
+  ctx.drawImage(userImg, cvOffX, cvOffY, cvDispW, cvDispH);
+
+  // Darken outside selection
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0,0,W,H);
+  // Cut out the selection (show image clearly inside)
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = 'rgba(0,0,0,1)';
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+  ctx.restore();
+
+  // Redraw image inside selection (full brightness)
+  ctx.save();
+  ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); ctx.clip();
+  ctx.drawImage(userImg, cvOffX, cvOffY, cvDispW, cvDispH);
+  ctx.restore();
+
+  // Selection border
+  ctx.strokeStyle = '#FF6B00';
+  ctx.lineWidth   = 1.5;
+  ctx.setLineDash([]);
+  ctx.strokeRect(box.x + .75, box.y + .75, box.w - 1.5, box.h - 1.5);
+
+  // Corner handles
+  const hs = 7;
+  ctx.fillStyle = '#FF6B00';
+  [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]].forEach(([hx,hy]) => {
+    ctx.fillRect(hx-hs/2, hy-hs/2, hs, hs);
+  });
+
+  // Rule-of-thirds inside selection
+  ctx.strokeStyle = 'rgba(255,107,0,0.22)';
+  ctx.lineWidth   = .6; ctx.setLineDash([3,3]);
+  [1/3,2/3].forEach(f => {
+    ctx.beginPath(); ctx.moveTo(box.x+box.w*f, box.y); ctx.lineTo(box.x+box.w*f, box.y+box.h); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(box.x, box.y+box.h*f); ctx.lineTo(box.x+box.w, box.y+box.h*f); ctx.stroke();
+  });
+  ctx.setLineDash([]);
+
+  // Size label
+  const imgW = Math.round(box.w / cvScale);
+  const imgH = Math.round(box.h / cvScale);
+  const isFree = !FMTS[fmt].lockRatio;
+  const labelText = isFree
+    ? `${imgW}×${imgH}  ${(imgW/imgH).toFixed(2)}`
+    : `${imgW}×${imgH}px`;
+  ctx.fillStyle = 'rgba(255,107,0,.85)';
+  ctx.fillRect(box.x, box.y - 17, 100, 16);
+  ctx.fillStyle = '#000';
+  ctx.font = '9px monospace'; ctx.textBaseline = 'middle';
+  ctx.fillText(labelText, box.x + 5, box.y - 9);
+}
+
+/* ── Drag interaction ── */
+const HANDLE_R = 8;
+let drag = null;  // { type:'draw'|'move'|'tl'|'tr'|'bl'|'br', startX, startY, boxSnap }
+
+function hitHandle(mx, my) {
+  const corners = {
+    tl:[box.x,box.y], tr:[box.x+box.w,box.y],
+    bl:[box.x,box.y+box.h], br:[box.x+box.w,box.y+box.h]
+  };
+  for (const [k,[hx,hy]] of Object.entries(corners)) {
+    if (Math.abs(mx-hx) < HANDLE_R && Math.abs(my-hy) < HANDLE_R) return k;
+  }
+  if (mx > box.x && mx < box.x+box.w && my > box.y && my < box.y+box.h) return 'move';
+  return null;
+}
+
+function cvPos(e) {
+  const cv   = document.getElementById('cropCanvas');
+  const rect = cv.getBoundingClientRect();
+  const scaleX = cv.width  / rect.width;
+  const scaleY = cv.height / rect.height;
+  const src = e.touches ? e.touches[0] : e;
+  return { x:(src.clientX-rect.left)*scaleX, y:(src.clientY-rect.top)*scaleY };
+}
+
+document.getElementById('cropCanvas').addEventListener('mousedown',  onDown);
+document.getElementById('cropCanvas').addEventListener('touchstart', onDown, {passive:true});
+window.addEventListener('mousemove',  onMove);
+window.addEventListener('touchmove',  onMove, {passive:false});
+window.addEventListener('mouseup',    onUp);
+window.addEventListener('touchend',   onUp);
+
+function onDown(e) {
+  const {x,y} = cvPos(e);
+  const hit = hitHandle(x, y);
+  const boxSnap = {...box};
+  if (hit) {
+    drag = { type:hit, startX:x, startY:y, boxSnap };
+  } else {
+    // Start new draw
+    drag = { type:'draw', startX:x, startY:y, boxSnap };
+  }
+}
+
+function onMove(e) {
+  if (!drag) return;
+  if (e.cancelable) e.preventDefault();
+  const {x,y} = cvPos(e);
+  const dx = x - drag.startX, dy = y - drag.startY;
+  const fmtRatio = FMTS[fmt].lockRatio;
+  const bs = drag.boxSnap;
+
+  if (drag.type === 'draw') {
+    const rawW = x - drag.startX;
+    const rawH = y - drag.startY;
+    const bw   = Math.abs(rawW);
+    const bh   = fmtRatio ? bw / fmtRatio : Math.abs(rawH);
+    box.x = rawW >= 0 ? drag.startX : drag.startX - bw;
+    box.y = rawH >= 0 ? drag.startY : drag.startY - bh;
+    box.w = bw; box.h = bh;
+  } else if (drag.type === 'move') {
+    box.x = bs.x + dx; box.y = bs.y + dy;
+  } else {
+    // Resize from corner
+    const anchors = {
+      tl:{ ax:bs.x+bs.w, ay:bs.y+bs.h },
+      tr:{ ax:bs.x,      ay:bs.y+bs.h },
+      bl:{ ax:bs.x+bs.w, ay:bs.y      },
+      br:{ ax:bs.x,      ay:bs.y      },
+    };
+    const { ax, ay } = anchors[drag.type];
+    const newW = Math.abs(x - ax);
+    const newH = fmtRatio ? newW / fmtRatio : Math.abs(y - ay);
+    if (drag.type === 'tl') { box.x = ax - newW; box.y = ay - newH; }
+    if (drag.type === 'tr') { box.x = ax;        box.y = ay - newH; }
+    if (drag.type === 'bl') { box.x = ax - newW; box.y = ay; }
+    if (drag.type === 'br') { box.x = ax;        box.y = ay; }
+    box.w = newW; box.h = newH;
+  }
+
+  clampBox();
+  drawCrop();
+}
+
+function onUp() {
+  if (drag) { drag = null; applyAndRender(); }
+}
+
+/* Convert box (display coords) → source image coords */
+function boxToSrc() {
+  return {
+    sx: (box.x - cvOffX) / cvScale,
+    sy: (box.y - cvOffY) / cvScale,
+    sw: box.w / cvScale,
+    sh: box.h / cvScale,
+  };
+}
+
+/* ═══════════════════════════════════════════════
+   FORMAT SWITCH
+═══════════════════════════════════════════════ */
+function setFmt(f, btn) {
+  fmt = f;
+  document.getElementById('fmtBadge').textContent = FMTS[f].label;
+  const hints = { mini:'23:31', sq:'1:1', wide:'99:62', free:'自由' };
+  document.getElementById('ratioHint').textContent = hints[f];
+  document.querySelectorAll('.active-fmt').forEach(b => { b.style.borderColor=''; b.style.color=''; });
+  btn.style.borderColor = 'var(--orange)'; btn.style.color = 'var(--orange)';
+  if (userImg) { resetBox(); drawCrop(); applyAndRender(); }
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER OUTPUT CANVAS
+   bg = cropped content (box region), blurred+dimmed
+   fg = full original image, centered at fgPct%
+═══════════════════════════════════════════════ */
+function applyAndRender() {
+  if (!userImg) return;
+
+  const f   = FMTS[fmt];
+  const src = boxToSrc();
+
+  // For free mode, output size = cropped area scaled to max 1200px on longest side
+  let OW, OH;
+  if (f.lockRatio) {
+    OW = f.outW; OH = f.outH;
+  } else {
+    const maxSide = 1200;
+    const scale   = Math.min(maxSide / src.sw, maxSide / src.sh, 1);
+    OW = Math.round(src.sw * scale);
+    OH = Math.round(src.sh * scale);
+  }
+
+  const cv   = document.getElementById('outCanvas');
+  cv.width   = OW; cv.height = OH;
+  const ctx  = cv.getContext('2d');
+
+  const blurPx = +document.getElementById('blur').value;
+  const dimPct = +document.getElementById('dim').value  / 100;
+  const fgPct  = +document.getElementById('fgS').value  / 100;
+  const shPx   = +document.getElementById('shd').value;
+
+  /* 1 — background: cropped region, fill canvas, blur + dim */
+  // Extract crop to an intermediate canvas at output size
+  const crop = document.createElement('canvas');
+  crop.width = OW; crop.height = OH;
+  crop.getContext('2d').drawImage(userImg, src.sx, src.sy, src.sw, src.sh, 0, 0, OW, OH);
+
+  const exp = blurPx * 2.5;
+  ctx.filter = `blur(${blurPx}px)`;
+  ctx.drawImage(crop, -exp, -exp, OW+exp*2, OH+exp*2);
+  ctx.filter = 'none';
+
+  ctx.fillStyle = `rgba(0,0,0,${1-dimPct})`;
+  ctx.fillRect(0, 0, OW, OH);
+
+  /* 2 — foreground: FULL original image, centered, contain-fit at fgPct */
+  const scale = Math.min(OW * fgPct / userImg.width, OH * fgPct / userImg.height);
+  const fgW   = userImg.width  * scale;
+  const fgH   = userImg.height * scale;
+  const fgX   = (OW - fgW) / 2;
+  const fgY   = (OH - fgH) / 2;
+
+  if (shPx > 0) {
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,.82)'; ctx.shadowBlur = shPx; ctx.shadowOffsetY = shPx*.35;
+    ctx.fillStyle = '#fff'; ctx.fillRect(fgX, fgY, fgW, fgH);
+    ctx.restore();
+  }
+
+  ctx.drawImage(userImg, fgX, fgY, fgW, fgH);
+
+  /* 3 — caption / date */
+  const caption  = document.getElementById('cap').value.trim();
+  const showDate = document.getElementById('showDate').checked;
+  const dateStr  = document.getElementById('dateText').value.trim();
+  const below    = OH - (fgY + fgH);
+
+  // Show/hide date input row based on toggle
+  document.getElementById('dateInputWrap').style.display = showDate ? 'block' : 'none';
+
+  if ((caption || (showDate && dateStr)) && below > 8) {
+    const baseY = fgY + fgH + Math.max(10, below*.44);
+    const lh    = Math.max(14, below*.32);
+    if (caption) {
+      ctx.save();
+      const fs = Math.max(14, fgW*.032);
+      ctx.font=`italic ${fs}px "Special Elite",serif`; ctx.fillStyle='rgba(255,255,255,.82)';
+      ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=8;
+      ctx.fillText(caption, OW/2, (showDate && dateStr) ? baseY : baseY, fgW*.88);
+      ctx.restore();
+    }
+    if (showDate && dateStr) {
+      ctx.save();
+      const fs2 = Math.max(15, fgW*.036);
+      ctx.font=`${fs2}px "Caveat",cursive`; ctx.fillStyle='rgba(255,255,255,.72)';
+      ctx.textAlign='center'; ctx.textBaseline='alphabetic';
+      ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=6;
+      ctx.fillText(dateStr, OW/2, caption ? baseY+lh : baseY);
+      ctx.restore();
+    }
+  }
+
+  /* 4 — scale for display */
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('outWrap').style.display    = 'flex';
+
+  const rp = document.getElementById('rightPanel');
+  const r  = Math.min(rp.clientWidth*.88/OW, rp.clientHeight*.88/OH, 1);
+  cv.style.width  = (OW*r)+'px';
+  cv.style.height = (OH*r)+'px';
+}
+
+/* ═══════════════════════════════════════════════
+   WELCOME / NAV
+═══════════════════════════════════════════════ */
+function onPick(e) { const f=e.target.files[0]; if(f) load(f); }
+
+const wDrop = document.getElementById('wDrop');
+wDrop.addEventListener('dragover',  e => { e.preventDefault(); wDrop.classList.add('over'); });
+wDrop.addEventListener('dragleave', () => wDrop.classList.remove('over'));
+wDrop.addEventListener('drop', e => {
+  e.preventDefault(); wDrop.classList.remove('over');
+  const f=e.dataTransfer.files[0]; if(f&&f.type.startsWith('image/')) load(f);
+});
+
+const lp = document.getElementById('leftPanel');
+lp.addEventListener('dragover',e=>e.preventDefault());
+lp.addEventListener('drop',e=>{
+  e.preventDefault(); const f=e.dataTransfer.files[0];
+  if(f&&f.type.startsWith('image/')) load(f);
+});
+
+function load(file) {
+  const r = new FileReader();
+  r.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      userImg = img;
+      // Init date field with today if empty
+      const dateEl = document.getElementById('dateText');
+      if (!dateEl.value) {
+        const now = new Date();
+        dateEl.value = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+      }
+      document.getElementById('welcome').classList.add('hidden');
+      document.getElementById('app').classList.add('visible');
+      document.getElementById('genBtn').disabled = false;
+      document.getElementById('fmtBadge').textContent = FMTS[fmt].label;
+      initCropCanvas();
+      autoDetect();
+    };
+    img.src = ev.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function goBack() {
+  userImg = null;
+  document.getElementById('wFile').value = '';
+  document.getElementById('welcome').classList.remove('hidden');
+  document.getElementById('app').classList.remove('visible');
+  document.getElementById('outWrap').style.display = 'none';
+  document.getElementById('emptyState').style.display = 'block';
+  document.getElementById('genBtn').disabled = true;
+}
+
+/* ═══════════════════════════════════════════════
+   HELPERS
+═══════════════════════════════════════════════ */
+function slv(el, lid, unit) { document.getElementById(lid).textContent = el.value + unit; }
+
+function resetAll() {
+  [['blur','blurV',20,'px'],['dim','dimV',50,'%'],['fgS','fgV',80,'%'],['shd','shdV',24,'px']].forEach(([id,l,v,u])=>{
+    document.getElementById(id).value=v; document.getElementById(l).textContent=v+u;
+  });
+  document.getElementById('cap').value='';
+  document.getElementById('showDate').checked=true;
+  const now = new Date();
+  document.getElementById('dateText').value = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')}`;
+  resetBox(); drawCrop(); applyAndRender();
+}
+
+function dlImg() {
+  const cv = document.getElementById('outCanvas');
+  const filename = `instaframe_${fmt}_${new Date().toISOString().slice(0,10)}.png`;
+
+  // Primary: toBlob → object URL (works even in restricted iframes)
+  if (cv.toBlob) {
+    cv.toBlob(blob => {
+      if (!blob) { alert('生成失败，请重试'); return; }
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement('a');
+      a.href     = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 3000);
+    }, 'image/png', 1);
+    return;
+  }
+
+  // Fallback: toDataURL → open in new tab so user can long-press/right-click save
+  try {
+    const dataURL = cv.toDataURL('image/png', 1);
+    const win = window.open('', '_blank');
+    if (win) {
+      win.document.write(`<img src="${dataURL}" style="max-width:100%"><br><p style="font-family:sans-serif;color:#888">右键图片 → 另存为 / 保存图片</p>`);
+    } else {
+      // If popup blocked, create a temporary link
+      const a = document.createElement('a');
+      a.href = dataURL; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    }
+  } catch(err) {
+    alert('下载受限，请右键预览图片另存为。\n(' + err.message + ')');
+  }
+}
+
+window.addEventListener('resize', () => { if(userImg) { initCropCanvas(); applyAndRender(); } });
+
+// Preload Caveat so canvas ctx.font works immediately
+document.fonts.load('16px "Caveat"').catch(()=>{});
+document.fonts.load('600 16px "Caveat"').catch(()=>{});
+</script>
+</body>
+</html>
