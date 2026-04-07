@@ -79,15 +79,20 @@
     .ghost-btn:hover { border-color:var(--orange); color:var(--orange); }
 
     /* layout */
-    .app-body { flex:1; display:grid; grid-template-columns:320px 1fr; height:calc(100vh - 52px); }
+    .app-body { flex:1; display:flex; flex-direction:column; min-height:calc(100vh - 52px); height:auto; }
 
     /* ── left panel ── */
     .left {
-      background:var(--dark); border-right:1px solid #1C1C1C;
-      overflow-y:auto; display:flex; flex-direction:column;
+      background:var(--dark); border-bottom:1px solid #1C1C1C;
+      display:flex; flex-direction:column; padding-bottom: 20px;
     }
     .left::-webkit-scrollbar { width:2px; }
     .left::-webkit-scrollbar-thumb { background:#1E1E1E; }
+
+    @media (min-width: 800px) {
+      .app-body { display:grid; grid-template-columns:320px 1fr; height:calc(100vh - 52px); min-height:auto; }
+      .left { border-right:1px solid #1C1C1C; border-bottom:none; overflow-y:auto; padding-bottom: 0; }
+    }
 
     .sec { font-family:'Bebas Neue',sans-serif; font-size:9px; letter-spacing:.24em; color:var(--orange); padding:13px 18px 5px; border-bottom:1px solid #181818; flex-shrink:0; }
 
@@ -151,7 +156,10 @@
       display:flex; align-items:center; justify-content:center;
       background:var(--dark3); position:relative; overflow:hidden;
       background-image:linear-gradient(rgba(255,107,0,.018) 1px,transparent 1px),linear-gradient(90deg,rgba(255,107,0,.018) 1px,transparent 1px);
-      background-size:36px 36px;
+      background-size:36px 36px; padding: 40px 0; min-height: 50vh;
+    }
+    @media (min-width: 800px) {
+      .right { padding: 0; min-height: auto; }
     }
     .right::after { content:''; position:absolute; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg,transparent,transparent 3px,rgba(0,0,0,.016) 3px,rgba(0,0,0,.016) 4px); }
 
@@ -274,7 +282,7 @@
         <div style="font-size:9px;color:#333;margin-top:4px;letter-spacing:.08em;">可输入任意文字，留空则不显示</div>
       </div>
 
-      <button class="gen-btn" id="genBtn" disabled onclick="applyAndRender()">⚡ 更新预览</button>
+      <button class="gen-btn" id="genBtn" disabled onclick="applyAndRender(); if(window.innerWidth < 800) document.getElementById('rightPanel').scrollIntoView({behavior:'smooth'})">⚡ 生成与预览</button>
 
     </div>
 
@@ -705,7 +713,10 @@ function applyAndRender() {
   document.getElementById('outWrap').style.display    = 'flex';
 
   const rp = document.getElementById('rightPanel');
-  const r  = Math.min(rp.clientWidth*.88/OW, rp.clientHeight*.88/OH, 1);
+  const isMobile = window.innerWidth < 800;
+  const availW = rp.clientWidth * (isMobile ? 0.92 : 0.88);
+  const availH = (isMobile ? window.innerHeight * 0.75 : rp.clientHeight) * 0.88;
+  const r  = Math.min(availW/OW, availH/OH, 1);
   cv.style.width  = (OW*r)+'px';
   cv.style.height = (OH*r)+'px';
 }
