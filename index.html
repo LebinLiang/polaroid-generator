@@ -230,8 +230,7 @@
 
       <div class="crop-btns">
         <button class="crop-btn" onclick="resetBox()">↺ 重置</button>
-        <button class="crop-btn" onclick="autoDetect()">⚡ 自动检测</button>
-        <button class="crop-btn primary" onclick="applyAndRender()">✓ 确认裁剪</button>
+        <button class="crop-btn primary" id="btnConfirmCrop" onclick="toggleCropLock()">✓ 确认裁剪</button>
       </div>
 
       <div class="sec">② 格式</div>
@@ -319,6 +318,7 @@ let userImg  = null;   // HTMLImageElement — full original
 
 /* Box in CROP CANVAS display coordinates */
 let box = { x:0, y:0, w:0, h:0 };   // the selection rectangle
+let cropLocked = false;             // whether the crop region is locked
 
 /* ═══════════════════════════════════════════════
    CROP CANVAS
@@ -356,6 +356,13 @@ function initCropCanvas() {
 
 function resetBox() {
   if (!userImg) return;
+  cropLocked = false;
+  const btn = document.getElementById('btnConfirmCrop');
+  if (btn) {
+    btn.innerHTML = '✓ 确认裁剪';
+    btn.classList.add('primary');
+  }
+
   const fmtRatio = FMTS[fmt].lockRatio;
   const cx = cvOffX + cvDispW / 2;
   const cy = cvOffY + cvDispH / 2;
@@ -421,6 +428,21 @@ function autoDetect() {
   applyAndRender();
 }
 
+function toggleCropLock() {
+  if (!userImg) return;
+  cropLocked = !cropLocked;
+  const btn = document.getElementById('btnConfirmCrop');
+  if (cropLocked) {
+    btn.innerHTML = '✎ 重新裁剪';
+    btn.classList.remove('primary');
+    applyAndRender();
+  } else {
+    btn.innerHTML = '✓ 确认裁剪';
+    btn.classList.add('primary');
+  }
+  drawCrop();
+}
+
 function clampBox() {
   const fmtRatio = FMTS[fmt].lockRatio;
   const minX = cvOffX, maxX = cvOffX + cvDispW;
@@ -468,40 +490,47 @@ function drawCrop() {
   ctx.drawImage(userImg, cvOffX, cvOffY, cvDispW, cvDispH);
   ctx.restore();
 
-  // Selection border
-  ctx.strokeStyle = '#FF6B00';
-  ctx.lineWidth   = 1.5;
-  ctx.setLineDash([]);
-  ctx.strokeRect(box.x + .75, box.y + .75, box.w - 1.5, box.h - 1.5);
+  if (!cropLocked) {
+    // Selection border
+    ctx.strokeStyle = '#FF6B00';
+    ctx.lineWidth   = 1.5;
+    ctx.setLineDash([]);
+    ctx.strokeRect(box.x + .75, box.y + .75, box.w - 1.5, box.h - 1.5);
 
-  // Corner handles
-  const hs = 7;
-  ctx.fillStyle = '#FF6B00';
-  [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]].forEach(([hx,hy]) => {
-    ctx.fillRect(hx-hs/2, hy-hs/2, hs, hs);
-  });
+    // Corner handles
+    const hs = 7;
+    ctx.fillStyle = '#FF6B00';
+    [[box.x,box.y],[box.x+box.w,box.y],[box.x,box.y+box.h],[box.x+box.w,box.y+box.h]].forEach(([hx,hy]) => {
+      ctx.fillRect(hx-hs/2, hy-hs/2, hs, hs);
+    });
 
-  // Rule-of-thirds inside selection
-  ctx.strokeStyle = 'rgba(255,107,0,0.22)';
-  ctx.lineWidth   = .6; ctx.setLineDash([3,3]);
-  [1/3,2/3].forEach(f => {
-    ctx.beginPath(); ctx.moveTo(box.x+box.w*f, box.y); ctx.lineTo(box.x+box.w*f, box.y+box.h); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(box.x, box.y+box.h*f); ctx.lineTo(box.x+box.w, box.y+box.h*f); ctx.stroke();
-  });
-  ctx.setLineDash([]);
+    // Rule-of-thirds inside selection
+    ctx.strokeStyle = 'rgba(255,107,0,0.22)';
+    ctx.lineWidth   = .6; ctx.setLineDash([3,3]);
+    [1/3,2/3].forEach(f => {
+      ctx.beginPath(); ctx.moveTo(box.x+box.w*f, box.y); ctx.lineTo(box.x+box.w*f, box.y+box.h); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(box.x, box.y+box.h*f); ctx.lineTo(box.x+box.w, box.y+box.h*f); ctx.stroke();
+    });
+    ctx.setLineDash([]);
 
-  // Size label
-  const imgW = Math.round(box.w / cvScale);
-  const imgH = Math.round(box.h / cvScale);
-  const isFree = !FMTS[fmt].lockRatio;
-  const labelText = isFree
-    ? `${imgW}×${imgH}  ${(imgW/imgH).toFixed(2)}`
-    : `${imgW}×${imgH}px`;
-  ctx.fillStyle = 'rgba(255,107,0,.85)';
-  ctx.fillRect(box.x, box.y - 17, 100, 16);
-  ctx.fillStyle = '#000';
-  ctx.font = '9px monospace'; ctx.textBaseline = 'middle';
-  ctx.fillText(labelText, box.x + 5, box.y - 9);
+    // Size label
+    const imgW = Math.round(box.w / cvScale);
+    const imgH = Math.round(box.h / cvScale);
+    const isFree = !FMTS[fmt].lockRatio;
+    const labelText = isFree
+      ? `${imgW}×${imgH}  ${(imgW/imgH).toFixed(2)}`
+      : `${imgW}×${imgH}px`;
+    ctx.fillStyle = 'rgba(255,107,0,.85)';
+    ctx.fillRect(box.x, box.y - 17, 100, 16);
+    ctx.fillStyle = '#000';
+    ctx.font = '9px monospace'; ctx.textBaseline = 'middle';
+    ctx.fillText(labelText, box.x + 5, box.y - 9);
+  } else {
+    ctx.strokeStyle = 'rgba(255,107,0,0.3)';
+    ctx.lineWidth   = 1;
+    ctx.setLineDash([]);
+    ctx.strokeRect(box.x + .5, box.y + .5, box.w - 1, box.h - 1);
+  }
 }
 
 /* ── Drag interaction ── */
@@ -537,6 +566,7 @@ window.addEventListener('mouseup',    onUp);
 window.addEventListener('touchend',   onUp);
 
 function onDown(e) {
+  if (cropLocked) return;
   const {x,y} = cvPos(e);
   const hit = hitHandle(x, y);
   const boxSnap = {...box};
@@ -773,6 +803,8 @@ function goBack() {
   document.getElementById('outWrap').style.display = 'none';
   document.getElementById('emptyState').style.display = 'block';
   document.getElementById('genBtn').disabled = true;
+  
+  if (cropLocked) toggleCropLock(); // unlock
 }
 
 /* ═══════════════════════════════════════════════
