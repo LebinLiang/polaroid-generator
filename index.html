@@ -264,6 +264,15 @@
       <textarea class="cap" id="cap" rows="2" placeholder="写点什么…" oninput="applyAndRender()"></textarea>
       <div class="hint">留空则不显示</div>
 
+      <div class="ctrl">
+        <label>距图距离 Distance to Image</label>
+        <div class="sw"><input type="range" id="txtSp" min="1" max="90" value="44" oninput="slv(this,'txtSpV','%');applyAndRender()"><span class="sv" id="txtSpV">44%</span></div>
+      </div>
+      <div class="ctrl">
+        <label>行间距 Line Spacing</label>
+        <div class="sw"><input type="range" id="lnSp" min="5" max="40" value="15" oninput="slv(this,'lnSpV','');applyAndRender()"><span class="sv" id="lnSpV">15</span></div>
+      </div>
+
       <div class="tog-row">
         <span class="tog-label">显示日期</span>
         <label class="tog"><input type="checkbox" id="showDate" onchange="applyAndRender()" checked><div class="tog-track"><div class="tog-thumb"></div></div></label>
@@ -710,17 +719,21 @@ function applyAndRender() {
   const caption  = document.getElementById('cap').value.trim();
   const showDate = document.getElementById('showDate').checked;
   const dateStr  = document.getElementById('dateText').value.trim();
+  const txtSpPct = +document.getElementById('txtSp').value / 100;
+  const lnSpVal  = +document.getElementById('lnSp').value / 10;
   const below    = OH - (fgY + fgH);
 
   // Show/hide date input row based on toggle
   document.getElementById('dateInputWrap').style.display = showDate ? 'block' : 'none';
 
   if ((caption || (showDate && dateStr)) && below > 8) {
-    const baseY = fgY + fgH + Math.max(10, below*.44);
-    const lh    = Math.max(14, below*.32);
+    const baseY = fgY + fgH + Math.max(10, below * txtSpPct);
+    const fs = Math.max(14, fgW*.032);
+    const fs2 = Math.max(15, fgW*.036);
+    const lh = fs * lnSpVal;
+    
     if (caption) {
       ctx.save();
-      const fs = Math.max(14, fgW*.032);
       ctx.font=`italic ${fs}px "Special Elite",serif`; ctx.fillStyle='rgba(255,255,255,.82)';
       ctx.textAlign='center'; ctx.textBaseline='alphabetic';
       ctx.shadowColor='rgba(0,0,0,.6)'; ctx.shadowBlur=8;
@@ -729,7 +742,6 @@ function applyAndRender() {
     }
     if (showDate && dateStr) {
       ctx.save();
-      const fs2 = Math.max(15, fgW*.036);
       ctx.font=`${fs2}px "Caveat",cursive`; ctx.fillStyle='rgba(255,255,255,.72)';
       ctx.textAlign='center'; ctx.textBaseline='alphabetic';
       ctx.shadowColor='rgba(0,0,0,.5)'; ctx.shadowBlur=6;
@@ -813,7 +825,7 @@ function goBack() {
 function slv(el, lid, unit) { document.getElementById(lid).textContent = el.value + unit; }
 
 function resetAll() {
-  [['blur','blurV',20,'px'],['dim','dimV',50,'%'],['fgS','fgV',80,'%'],['shd','shdV',24,'px']].forEach(([id,l,v,u])=>{
+  [['blur','blurV',20,'px'],['dim','dimV',50,'%'],['fgS','fgV',80,'%'],['shd','shdV',24,'px'],['txtSp','txtSpV',44,'%'],['lnSp','lnSpV',15,'']].forEach(([id,l,v,u])=>{
     document.getElementById(id).value=v; document.getElementById(l).textContent=v+u;
   });
   document.getElementById('cap').value='';
