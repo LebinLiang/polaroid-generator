@@ -860,7 +860,17 @@ function dlImg() {
   }
 }
 
-window.addEventListener('resize', () => { if(userImg) { initCropCanvas(); applyAndRender(); } });
+let _lastMobileWinH = window.innerHeight;
+window.addEventListener('resize', () => { 
+  if(userImg) { 
+    // 手机浏览器上下滑动时地址栏显隐会改变高度触发 resize，
+    // 此时不应调用 initCropCanvas() 导致裁剪模式重置，仅处理预览区缩放即可
+    if (window.innerWidth !== document.body.clientWidth) {
+      /* 如果未来需要处理宽度改变的情况可以在此加逻辑 */
+    }
+    applyAndRender(); 
+  } 
+});
 
 // Preload Caveat so canvas ctx.font works immediately
 document.fonts.load('16px "Caveat"').catch(()=>{});
